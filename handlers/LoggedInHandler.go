@@ -13,7 +13,7 @@ import (
 type GithubResponse struct {
 	GithubData struct {
 		Login string `json:"login"`
-		Id int `json:"id"`
+		Id    int    `json:"id"`
 	}
 }
 

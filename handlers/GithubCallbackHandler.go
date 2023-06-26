@@ -2,15 +2,15 @@ package handlers
 
 import (
 	"encoding/json"
-	"net/http"
 	"fmt"
+	"net/http"
 
 	"demo.com/helpers"
 )
 
 type UserCred struct {
 	Login string `json:"login"`
-	Id int `json:"id"`
+	Id    int    `json:"id"`
 }
 
 func GithubCallbackHandler(w http.ResponseWriter, r *http.Request) {
@@ -28,8 +28,8 @@ func GithubCallbackHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response := struct {
-		GithubData interface{}   `json:"githubData"`
-		GithubOrgs []string 		 `json:"githubOrgs"`
+		GithubData interface{} `json:"githubData"`
+		GithubOrgs []string    `json:"githubOrgs"`
 	}{
 		GithubData: userCred,
 		GithubOrgs: githubOrgs,
