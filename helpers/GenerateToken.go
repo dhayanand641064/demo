@@ -9,12 +9,12 @@ import (
 )
 
 type UserClaim struct {
-	Username string
+	UserID string
 	jwt.StandardClaims
 }
 
 type Input struct {
-	Username string
+	UserID string
 }
 
 var jwtSecret = []byte(os.Getenv("JWT_SECRET"))
@@ -26,7 +26,7 @@ func GenerateToken(payload Input) (string, error) {
 
 	var signMethod = jwt.SigningMethodHS256
 	claims := UserClaim{
-		Username: payload.Username,
+		UserID: payload.UserID,
 		StandardClaims: jwt.StandardClaims{
 			ExpiresAt: time.Now().Add(time.Second * time.Duration(expireTime)).Unix(),
 		},

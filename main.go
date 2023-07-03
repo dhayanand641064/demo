@@ -23,14 +23,14 @@ func main() {
 	http.HandleFunc("/login/github/callback", handlers.GithubCallbackHandler)
 	http.HandleFunc("/loggedin", func(w http.ResponseWriter, r *http.Request) {
 		githubData := r.URL.Query().Get("githubData")
-		handlers.LoggedInHandler(w, r, githubData)
-		lastUsername, err := helpers.GetUsername()
+		insertedID, err := handlers.LoggedInHandler(w, r, githubData)
 		if err != nil {
-			fmt.Println("Error retrieving last username:", err)
+			fmt.Println("Error handling logged in:", err)
 			return
 		}
+
 		payload := helpers.Input{
-			Username: lastUsername,
+			UserID: insertedID,
 		}
 
 		token, err := helpers.GenerateToken(payload)

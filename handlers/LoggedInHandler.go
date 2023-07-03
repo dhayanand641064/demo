@@ -1,13 +1,14 @@
 package handlers
 
 import (
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
 
-	"github.com/go-sql-driver/mysql"
+	"github.com/couchbase/gocb/v2"
+	"github.com/google/uuid"
+	"github.com/joho/godotenv"
 )
 
 type GithubResponse struct {
@@ -17,21 +18,21 @@ type GithubResponse struct {
 	}
 }
 
-func LoggedInHandler(w http.ResponseWriter, r *http.Request, githubData string) {
+func LoggedInHandler(w http.ResponseWriter, r *http.Request, githubData string) (string, error) {
 	if githubData == "" {
 		w.WriteHeader(http.StatusUnauthorized)
 		fmt.Fprintf(w, `{"error": "Unauthorized"}`)
-		return
+		return "", nil
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 
-	// un-marshall the data before marshalling with githubOrgs
+	// Unmarshal the data before marshalling with githubOrgs
 	var data GithubResponse
 	err := json.Unmarshal([]byte(string(githubData)), &data)
 	if err != nil {
 		fmt.Println("Error parsing github data", err)
-		return
+		return "", err
 	}
 
 	response := struct {
@@ -46,7 +47,7 @@ func LoggedInHandler(w http.ResponseWriter, r *http.Request, githubData string) 
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		fmt.Fprintf(w, `{"error": "Failed to marshal response JSON"}`)
-		return
+		return "", err
 	}
 
 	fmt.Fprintf(w, string(responseJSON))
@@ -54,67 +55,69 @@ func LoggedInHandler(w http.ResponseWriter, r *http.Request, githubData string) 
 	username := data.GithubData.Login
 	fmt.Printf("Username: %s\n", username)
 	if username != "" {
-		err := createMySQLEntry(username)
+		insertedID, err := createCouchbaseEntry(username)
 		if err != nil {
-			fmt.Println("Failed to create MySQL entry:", err)
+			fmt.Println("Failed to create Couchbase entry:", err)
+			return "", err
+			// You may handle the error according to your requirements
+		} else {
+			fmt.Printf("Inserted Document ID: %s\n", insertedID)
+			return insertedID, nil
 		}
 	}
+
+	return "", nil
 }
 
-func createMySQLEntry(username string) error {
-	dbUsername := os.Getenv("MYSQL_USERNAME")
-	password := os.Getenv("MYSQL_PASSWORD")
-	host := os.Getenv("MYSQL_HOST")
-	port := os.Getenv("MYSQL_PORT")
-	database := os.Getenv("MYSQL_DATABASE")
+type User struct {
+	ID       string `json:"id"`
+	Username string `json:"username"`
+}
 
-	cfg := mysql.Config{
-		User:                 dbUsername,
-		Passwd:               password,
-		Net:                  "tcp",
-		Addr:                 fmt.Sprintf("%s:%s", host, port),
-		DBName:               database,
-		AllowNativePasswords: true,
-	}
-
-	db, err := sql.Open("mysql", cfg.FormatDSN())
+func createCouchbaseEntry(username string) (string, error) {
+	err := godotenv.Load()
 	if err != nil {
-		return err
+		return "", fmt.Errorf("error loading .env file: %w", err)
 	}
-	defer db.Close()
 
-	// Create the database if it doesn't exist
-	_, err = db.Exec(fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %s", database))
+	// Get the Couchbase details from environment variables
+	connectionString := os.Getenv("COUCHBASE_CONNECTION_STRING")
+	bucketName := os.Getenv("COUCHBASE_BUCKET_NAME")
+	dbUsername := os.Getenv("COUCHBASE_USERNAME")
+	password := os.Getenv("COUCHBASE_PASSWORD")
+
+	// Connect to the Couchbase cluster
+	cluster, err := gocb.Connect(connectionString, gocb.ClusterOptions{
+		Username: dbUsername,
+		Password: password,
+	})
 	if err != nil {
-		return err
+		return "", fmt.Errorf("error connecting to Couchbase: %w", err)
 	}
 
-	// Select the created database
-	_, err = db.Exec(fmt.Sprintf("USE %s", database))
+	// Open the bucket
+	bucket := cluster.Bucket(bucketName)
+
+	// Open the collection within the bucket
+	collection := bucket.DefaultCollection()
+
+	// Generate a UUID for the document
+	id := uuid.New().String()
+
+	// Create a new user document
+	user := User{
+		ID:       id,
+		Username: username,
+	}
+
+	// Insert the document into the collection
+	_, err = collection.Upsert(id, user, nil)
 	if err != nil {
-		return err
+		return "", fmt.Errorf("error inserting document into Couchbase: %w", err)
 	}
 
-	// Create the table if it doesn't exist
-	_, err = db.Exec(`
-		CREATE TABLE IF NOT EXISTS users (
-			id INT AUTO_INCREMENT PRIMARY KEY,
-			username VARCHAR(255)
-		)`)
-	if err != nil {
-		return err
-	}
+	// Print the ID of the inserted document
+	fmt.Printf("Inserted Document ID: %s\n", id)
 
-	stmt, err := db.Prepare("INSERT INTO users (username) VALUES (?)")
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
-
-	_, err = stmt.Exec(username)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return id, nil
 }
