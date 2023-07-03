@@ -27,7 +27,6 @@ func LoggedInHandler(w http.ResponseWriter, r *http.Request, githubData string) 
 
 	w.Header().Set("Content-Type", "application/json")
 
-	// Unmarshal the data before marshalling with githubOrgs
 	var data GithubResponse
 	err := json.Unmarshal([]byte(string(githubData)), &data)
 	if err != nil {
@@ -59,7 +58,7 @@ func LoggedInHandler(w http.ResponseWriter, r *http.Request, githubData string) 
 		if err != nil {
 			fmt.Println("Failed to create Couchbase entry:", err)
 			return "", err
-			// You may handle the error according to your requirements
+
 		} else {
 			fmt.Printf("Inserted Document ID: %s\n", insertedID)
 			return insertedID, nil
@@ -80,13 +79,11 @@ func createCouchbaseEntry(username string) (string, error) {
 		return "", fmt.Errorf("error loading .env file: %w", err)
 	}
 
-	// Get the Couchbase details from environment variables
 	connectionString := os.Getenv("COUCHBASE_CONNECTION_STRING")
 	bucketName := os.Getenv("COUCHBASE_BUCKET_NAME")
 	dbUsername := os.Getenv("COUCHBASE_USERNAME")
 	password := os.Getenv("COUCHBASE_PASSWORD")
 
-	// Connect to the Couchbase cluster
 	cluster, err := gocb.Connect(connectionString, gocb.ClusterOptions{
 		Username: dbUsername,
 		Password: password,
@@ -95,28 +92,22 @@ func createCouchbaseEntry(username string) (string, error) {
 		return "", fmt.Errorf("error connecting to Couchbase: %w", err)
 	}
 
-	// Open the bucket
 	bucket := cluster.Bucket(bucketName)
 
-	// Open the collection within the bucket
 	collection := bucket.DefaultCollection()
 
-	// Generate a UUID for the document
 	id := uuid.New().String()
 
-	// Create a new user document
 	user := User{
 		ID:       id,
 		Username: username,
 	}
 
-	// Insert the document into the collection
 	_, err = collection.Upsert(id, user, nil)
 	if err != nil {
 		return "", fmt.Errorf("error inserting document into Couchbase: %w", err)
 	}
 
-	// Print the ID of the inserted document
 	fmt.Printf("Inserted Document ID: %s\n", id)
 
 	return id, nil
