@@ -6,9 +6,8 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/couchbase/gocb/v2"
+	"demo.com/db"
 	"github.com/google/uuid"
-	"github.com/joho/godotenv"
 )
 
 type GithubResponse struct {
@@ -30,7 +29,7 @@ func LoggedInHandler(w http.ResponseWriter, r *http.Request, githubData string) 
 	var data GithubResponse
 	err := json.Unmarshal([]byte(string(githubData)), &data)
 	if err != nil {
-		fmt.Println("Error parsing github data", err)
+		fmt.Println("Error parsing GitHub data", err)
 		return "", err
 	}
 
@@ -58,11 +57,10 @@ func LoggedInHandler(w http.ResponseWriter, r *http.Request, githubData string) 
 		if err != nil {
 			fmt.Println("Failed to create Couchbase entry:", err)
 			return "", err
-
-		} else {
-			fmt.Printf("Inserted Document ID: %s\n", insertedID)
-			return insertedID, nil
 		}
+
+		fmt.Printf("Inserted Document ID: %s\n", insertedID)
+		return insertedID, nil
 	}
 
 	return "", nil
@@ -74,26 +72,14 @@ type User struct {
 }
 
 func createCouchbaseEntry(username string) (string, error) {
-	err := godotenv.Load()
+	cluster, err := db.CreateCouchbaseConnection()
 	if err != nil {
-		return "", fmt.Errorf("error loading .env file: %w", err)
+		return "", err
 	}
+	defer cluster.Close(nil)
 
-	connectionString := os.Getenv("COUCHBASE_CONNECTION_STRING")
 	bucketName := os.Getenv("COUCHBASE_BUCKET_NAME")
-	dbUsername := os.Getenv("COUCHBASE_USERNAME")
-	password := os.Getenv("COUCHBASE_PASSWORD")
-
-	cluster, err := gocb.Connect(connectionString, gocb.ClusterOptions{
-		Username: dbUsername,
-		Password: password,
-	})
-	if err != nil {
-		return "", fmt.Errorf("error connecting to Couchbase: %w", err)
-	}
-
 	bucket := cluster.Bucket(bucketName)
-
 	collection := bucket.DefaultCollection()
 
 	id := uuid.New().String()
