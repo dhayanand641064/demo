@@ -7,7 +7,7 @@ import (
 	"os"
 
 	"demo.com/db"
-	"github.com/google/uuid"
+	"demo.com/models"
 )
 
 type GithubResponse struct {
@@ -82,19 +82,14 @@ func createCouchbaseEntry(username string) (string, error) {
 	bucket := cluster.Bucket(bucketName)
 	collection := bucket.DefaultCollection()
 
-	id := uuid.New().String()
+	user := models.NewUser(username)
 
-	user := User{
-		ID:       id,
-		Username: username,
-	}
-
-	_, err = collection.Upsert(id, user, nil)
+	_, err = collection.Upsert(user.ID, user, nil)
 	if err != nil {
 		return "", fmt.Errorf("error inserting document into Couchbase: %w", err)
 	}
 
-	fmt.Printf("Inserted Document ID: %s\n", id)
+	fmt.Printf("Inserted Document ID: %s\n", user.ID)
 
-	return id, nil
+	return user.ID, nil
 }
